@@ -1,11 +1,9 @@
-# Updated Streamlit Liar Game with mobile optimization, restart button,
-# dynamic role assignment, timer, and final voting logic.
+# Streamlit Liar Game (타이머 제거 버전)
 
 import streamlit as st
 import random
 import json
 import os
-import time
 
 TOPIC_FILE = "topics.json"
 
@@ -39,6 +37,9 @@ if st.sidebar.button("🔄 다시 시작하기"):
 
 page = st.sidebar.selectbox("메뉴", ["게임 시작", "주제 추가"])
 
+# =====================================================================
+# 📌 주제 추가 페이지
+# =====================================================================
 if page == "주제 추가":
     st.header("📝 게임 주제 추가")
 
@@ -58,6 +59,9 @@ if page == "주제 추가":
     for i, t in enumerate(topics):
         st.write(f"{i+1}. 질문: {t['question']} / 숫자범위: {t['range']}")
 
+# =====================================================================
+# 📌 게임 시작
+# =====================================================================
 if page == "게임 시작":
     st.header("🎲 게임 설정")
 
@@ -74,6 +78,7 @@ if page == "게임 시작":
         format_func=lambda x: f"주제 #{x+1}"
     )
 
+    # 🔹 역할 배정 시작
     if st.button("역할 배정 시작"):
         if players <= 3:
             roles = ["라이어"] + ["시민"] * (players - 1)
@@ -89,17 +94,22 @@ if page == "게임 시작":
 
         st.success("역할 배정 완료! 한 명씩 역할을 확인하세요.")
 
+    # =================================================================
+    # 📌 역할 확인 화면
+    # =================================================================
     if "phase" in st.session_state and st.session_state.phase == "role_check":
 
-        st.header(f"👤 {st.session_state.current_player}번 플레이어 차례")
+        st.subheader(f"👤 {st.session_state.current_player}번 플레이어 역할 확인")
         player = st.session_state.current_player
 
         if f"checked_{player}" not in st.session_state:
             st.session_state[f"checked_{player}"] = False
 
+        # ▶ 역할 확인 버튼
         if not st.session_state[f"checked_{player}"]:
             if st.button("👉 역할 확인하기"):
                 st.session_state[f"checked_{player}"] = True
+
         else:
             role = st.session_state.roles[player - 1]
             topic = st.session_state.topic
@@ -113,44 +123,20 @@ if page == "게임 시작":
                 st.success(f"질문: {topic['question']}")
                 st.info(f"숫자 범위: {topic['range']}")
 
+            # 다음 플레이어로 이동
             if player < players:
                 if st.button("➡️ 다음 플레이어"):
                     st.session_state.current_player += 1
                     st.rerun()
             else:
-                if st.button("🎯 역할 확인 완료 → 추리 시작"):
-                    st.session_state.phase = "timer_setup"
+                # 모든 플레이어 확인 완료 → 곧바로 투표 단계로
+                if st.button("🎯 역할 확인 완료 → 투표로 이동"):
+                    st.session_state.phase = "vote"
                     st.rerun()
 
-    if "phase" in st.session_state and st.session_state.phase == "timer_setup":
-        st.header("⏱ 추리 시간 설정")
-
-        minutes = st.number_input("분", 0, 30, 1)
-        seconds = st.number_input("초", 0, 59, 0)
-
-        if st.button("🔔 추리 시작"):
-            st.session_state.timer_total = minutes * 60 + seconds
-            st.session_state.timer_start = time.time()
-            st.session_state.phase = "timer_running"
-            st.rerun()
-
-    if "phase" in st.session_state and st.session_state.phase == "timer_running":
-        st.header("⌛ 추리 시간 진행 중...")
-
-        elapsed = int(time.time() - st.session_state.timer_start)
-        remaining = st.session_state.timer_total - elapsed
-
-        if remaining <= 0:
-            remaining = 0
-            st.session_state.phase = "vote"
-
-        mins = remaining // 60
-        secs = remaining % 60
-
-        st.subheader(f"남은 시간: {mins:02d}:{secs:02d}")
-
-        st.rerun()
-
+    # =================================================================
+    # 📌 최종 투표 (타이머 없음)
+    # =================================================================
     if "phase" in st.session_state and st.session_state.phase == "vote":
         st.header("🗳 최종 투표 — 범인은 누구인가?")
 
@@ -162,6 +148,6 @@ if page == "게임 시작":
             if selected_role == "라이어":
                 st.success("🎉 시민 승리! 라이어를 정확히 찾았습니다!")
             elif selected_role == "트롤":
-                st.warning("😈 트롤 승리! 트롤이 라이어로 속였습니다!")
+                st.warning("🤡 트롤 승리! 트롤이 라이어로 속였습니다!")
             else:
-                st.error("🤡 라이어 승리! 시민이 라이어를 찾지 못했습니다.")
+                st.error("😈 라이어 승리! 시민이 라이어를 찾지 못했습니다.")
