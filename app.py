@@ -35,7 +35,7 @@ def reset_game():
 
 if st.sidebar.button("🔄 다시 시작하기"):
     reset_game()
-    st.experimental_rerun()
+    st.rerun()
 
 page = st.sidebar.selectbox("메뉴", ["게임 시작", "주제 추가"])
 
@@ -116,11 +116,11 @@ if page == "게임 시작":
             if player < players:
                 if st.button("➡️ 다음 플레이어"):
                     st.session_state.current_player += 1
-                    st.experimental_rerun()
+                    st.rerun()
             else:
                 if st.button("🎯 역할 확인 완료 → 추리 시작"):
                     st.session_state.phase = "timer_setup"
-                    st.experimental_rerun()
+                    st.rerun()
 
     if "phase" in st.session_state and st.session_state.phase == "timer_setup":
         st.header("⏱ 추리 시간 설정")
@@ -132,7 +132,7 @@ if page == "게임 시작":
             st.session_state.timer_total = minutes * 60 + seconds
             st.session_state.timer_start = time.time()
             st.session_state.phase = "timer_running"
-            st.experimental_rerun()
+            st.rerun()
 
     if "phase" in st.session_state and st.session_state.phase == "timer_running":
         st.header("⌛ 추리 시간 진행 중...")
@@ -149,7 +149,7 @@ if page == "게임 시작":
 
         st.subheader(f"남은 시간: {mins:02d}:{secs:02d}")
 
-        st.experimental_rerun()
+        st.rerun()
 
     if "phase" in st.session_state and st.session_state.phase == "vote":
         st.header("🗳 최종 투표 — 범인은 누구인가?")
