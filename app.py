@@ -1,14 +1,13 @@
-# Updated Streamlit Liar Game with mobile optimization, restart button,
-# dynamic role assignment, timer, and final voting logic.
-
 import streamlit as st
 import random
 import json
 import os
-import time
 
 TOPIC_FILE = "topics.json"
 
+# --------------------------
+# 주제 저장/불러오기 기능
+# --------------------------
 def load_topics():
     if not os.path.exists(TOPIC_FILE):
         return []
@@ -21,14 +20,20 @@ def save_topic(question, number_range):
     with open(TOPIC_FILE, "w", encoding="utf-8") as f:
         json.dump(topics, f, ensure_ascii=False, indent=4)
 
+# --------------------------
+# 기본 페이지 설정 + 모바일 최적화
+# --------------------------
 st.set_page_config(page_title="라이어 게임", page_icon="🎮", layout="centered")
 st.markdown(
-    "<style>body {zoom: 0.9;} .stButton>button{width:100%;}</style>",
+    "<style>body {zoom: 0.9;} .stButton>button{width:100%; font-size:18px; padding:10px 0;}</style>",
     unsafe_allow_html=True,
 )
 
 st.title("🎮 온라인 라이어 게임")
 
+# --------------------------
+# 다시 시작하기 기능
+# --------------------------
 def reset_game():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
@@ -39,6 +44,9 @@ if st.sidebar.button("🔄 다시 시작하기"):
 
 page = st.sidebar.selectbox("메뉴", ["게임 시작", "주제 추가"])
 
+# =====================================================================
+# 1) 주제 추가 페이지
+# =====================================================================
 if page == "주제 추가":
     st.header("📝 게임 주제 추가")
 
@@ -58,6 +66,9 @@ if page == "주제 추가":
     for i, t in enumerate(topics):
         st.write(f"{i+1}. 질문: {t['question']} / 숫자범위: {t['range']}")
 
+# =====================================================================
+# 2) 게임 시작 페이지
+# =====================================================================
 if page == "게임 시작":
     st.header("🎲 게임 설정")
 
@@ -65,103 +76,78 @@ if page == "게임 시작":
     topics = load_topics()
 
     if len(topics) == 0:
-        st.warning("주제가 없습니다. 먼저 '주제 추가'에서 등록하세요.")
+        st.warning("주제가 없습니다! 먼저 주제를 추가해주세요.")
         st.stop()
 
-    selected_topic_index = st.selectbox(
-        "게임 주제 선택 (플레이어에게는 비공개)",
-        options=list(range(len(topics))),
-        format_func=lambda x: f"주제 #{x+1}"
-    )
+    selected_topic = st.selectbox("주제 선택", topics)
 
-    if st.button("역할 배정 시작"):
-        if players <= 3:
-            roles = ["라이어"] + ["시민"] * (players - 1)
-        else:
-            roles = ["라이어", "트롤"] + ["시민"] * (players - 2)
-
-        random.shuffle(roles)
-
-        st.session_state.roles = roles
+    if "roles" not in st.session_state:
+        st.session_state.roles = None
+    if "current_player" not in st.session_state:
         st.session_state.current_player = 1
-        st.session_state.topic = topics[selected_topic_index]
-        st.session_state.phase = "role_check"
+    if "game_stage" not in st.session_state:
+        st.session_state.game_stage = "assign"
 
-        st.success("역할 배정 완료! 한 명씩 역할을 확인하세요.")
+    # --------------------------
+    # 역할 배정
+    # --------------------------
+    if st.session_state.game_stage == "assign":
 
-    if "phase" in st.session_state and st.session_state.phase == "role_check":
+        if st.button("역할 배정 시작"):
+            roles = ["시민"] * players
 
-        st.header(f"👤 {st.session_state.current_player}번 플레이어 차례")
-        player = st.session_state.current_player
-
-        if f"checked_{player}" not in st.session_state:
-            st.session_state[f"checked_{player}"] = False
-
-        if not st.session_state[f"checked_{player}"]:
-            if st.button("👉 역할 확인하기"):
-                st.session_state[f"checked_{player}"] = True
-        else:
-            role = st.session_state.roles[player - 1]
-            topic = st.session_state.topic
-
-            st.subheader(f"당신의 역할: {role}")
-
-            if role == "라이어":
-                st.warning("라이어는 질문을 볼 수 없습니다.")
-                st.info(f"숫자 범위: {topic['range']}")
+            # 3명 → 라이어 1명
+            if players <= 3:
+                liar = random.randint(0, players - 1)
+                roles[liar] = "라이어"
             else:
-                st.success(f"질문: {topic['question']}")
-                st.info(f"숫자 범위: {topic['range']}")
+                # 4명 이상 → 라이어 + 트롤 추가
+                liar = random.randint(0, players - 1)
+                troll = random.randint(0, players - 1)
+                while troll == liar:
+                    troll = random.randint(0, players - 1)
 
-            if player < players:
-                if st.button("➡️ 다음 플레이어"):
-                    st.session_state.current_player += 1
-                    st.rerun()
-            else:
-                if st.button("🎯 역할 확인 완료 → 추리 시작"):
-                    st.session_state.phase = "timer_setup"
-                    st.rerun()
+                roles[liar] = "라이어"
+                roles[troll] = "트롤"
 
-    if "phase" in st.session_state and st.session_state.phase == "timer_setup":
-        st.header("⏱ 추리 시간 설정")
-
-        minutes = st.number_input("분", 0, 30, 1)
-        seconds = st.number_input("초", 0, 59, 0)
-
-        if st.button("🔔 추리 시작"):
-            st.session_state.timer_total = minutes * 60 + seconds
-            st.session_state.timer_start = time.time()
-            st.session_state.phase = "timer_running"
+            st.session_state.roles = roles
+            st.session_state.game_stage = "role_check"
             st.rerun()
 
-    if "phase" in st.session_state and st.session_state.phase == "timer_running":
-        st.header("⌛ 추리 시간 진행 중...")
+    # --------------------------
+    # 역할 확인 단계
+    # --------------------------
+    if st.session_state.game_stage == "role_check":
+        st.subheader(f"플레이어 {st.session_state.current_player} 역할 확인")
 
-        elapsed = int(time.time() - st.session_state.timer_start)
-        remaining = st.session_state.timer_total - elapsed
+        if st.button("역할 보기"):
+            role = st.session_state.roles[st.session_state.current_player - 1]
+            st.success(f"당신의 역할: **{role}**")
 
-        if remaining <= 0:
-            remaining = 0
-            st.session_state.phase = "vote"
-
-        mins = remaining // 60
-        secs = remaining % 60
-
-        st.subheader(f"남은 시간: {mins:02d}:{secs:02d}")
-
-        st.rerun()
-
-    if "phase" in st.session_state and st.session_state.phase == "vote":
-        st.header("🗳 최종 투표 — 범인은 누구인가?")
-
-        choice = st.radio("번호 선택", list(range(1, players + 1)))
-
-        if st.button("결과 보기"):
-            selected_role = st.session_state.roles[choice - 1]
-
-            if selected_role == "라이어":
-                st.success("🎉 시민 승리! 라이어를 정확히 찾았습니다!")
-            elif selected_role == "트롤":
-                st.warning("😈 트롤 승리! 트롤이 라이어로 속였습니다!")
+        if st.button("확인 완료"):
+            if st.session_state.current_player == players:
+                st.session_state.game_stage = "voting"
             else:
-                st.error("🤡 라이어 승리! 시민이 라이어를 찾지 못했습니다.")
+                st.session_state.current_player += 1
+            st.rerun()
+
+    # --------------------------
+    # 범인 선택 단계 (타이머 제거)
+    # --------------------------
+    if st.session_state.game_stage == "voting":
+        st.header("🔎 범인을 선택하세요!")
+
+        choice = st.selectbox("누가 라이어인가?", list(range(1, players + 1)))
+
+        if st.button("선택 완료"):
+            selected = choice - 1
+            roles = st.session_state.roles
+
+            if roles[selected] == "라이어":
+                st.success("🎉 시민 승리! (라이어를 정확히 찾아냈습니다)")
+            elif roles[selected] == "트롤":
+                st.error("🤡 트롤 승리! (트롤이 라이어로 지목됨)")
+            else:
+                st.error("😈 라이어 승리! (시민을 지목함)")
+
+            st.write("게임이 종료되었습니다. 왼쪽의 '다시 시작하기'로 재시작하세요.")
